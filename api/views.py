@@ -1,19 +1,27 @@
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.models import User
-from .models import Profile, Event, Registration
-from .serializers import RegisterSerializer, UserSerializer, EventSerializer, RegistrationSerializer
+from django.db.models import Q
+from rest_framework import generics, permissions
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+from rest_framework.response import Response
+
+from .models import Event, Registration
+from .serializers import EventSerializer, RegisterSerializer, RegistrationSerializer, UserSerializer
 
 
-# Inscription
+class IsOrganizerOrReadOnly(BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        return obj.organizer == request.user
+
+
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
 
 
-# Profil utilisateur connecté
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def me(request):
@@ -21,32 +29,31 @@ def me(request):
     return Response(serializer.data)
 
 
-# Liste et création d'événements
 class EventListCreateView(generics.ListCreateAPIView):
     serializer_class = EventSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            return Event.objects.all()
+            return Event.objects.filter(Q(is_public=True) | Q(organizer=user))
         return Event.objects.filter(is_public=True)
 
     def perform_create(self, serializer):
         serializer.save(organizer=self.request.user)
 
 
-# Détail, modification, suppression d'un événement
 class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = EventSerializer
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOrganizerOrReadOnly]
 
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            return Event.objects.all()
+            return Event.objects.filter(Q(is_public=True) | Q(organizer=user))
         return Event.objects.filter(is_public=True)
 
 
-# S'inscrire à un événement
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def register_to_event(request, event_id):
@@ -55,6 +62,9 @@ def register_to_event(request, event_id):
     except Event.DoesNotExist:
         return Response({'error': 'Événement introuvable'}, status=404)
 
+    if not event.is_public and event.organizer != request.user:
+        return Response({'error': 'Accès refusé'}, status=403)
+
     if Registration.objects.filter(participant=request.user, event=event).exists():
         return Response({'error': 'Déjà inscrit à cet événement'}, status=400)
 
@@ -62,7 +72,6 @@ def register_to_event(request, event_id):
     return Response({'message': 'Inscription réussie'}, status=201)
 
 
-# Mes inscriptions (participant)
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def my_registrations(request):
@@ -71,7 +80,6 @@ def my_registrations(request):
     return Response(serializer.data)
 
 
-# Liste des participants d'un événement (organisateur)
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def event_participants(request, event_id):
@@ -85,17 +93,18 @@ def event_participants(request, event_id):
     return Response(serializer.data)
 
 
-# Dashboard organisateur
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def dashboard(request):
     events = Event.objects.filter(organizer=request.user)
     data = []
     for event in events:
-        data.append({
-            'id': event.id,
-            'title': event.title,
-            'date': event.date,
-            'registrations_count': event.registrations.count(),
-        })
+        data.append(
+            {
+                'id': event.id,
+                'title': event.title,
+                'date': event.date,
+                'registrations_count': event.registrations.count(),
+            }
+        )
     return Response(data)

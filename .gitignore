@@ -1,0 +1,13 @@
+﻿# Python
+__pycache__/
+*.py[cod]
+
+# Local env files
+.env
+
+# SQLite fallback
+db.sqlite3
+
+# Virtualenv
+venv/
+env/

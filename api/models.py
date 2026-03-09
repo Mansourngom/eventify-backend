@@ -1,5 +1,6 @@
-from django.db import models
 from django.contrib.auth.models import User
+from django.db import models
+
 
 class Profile(models.Model):
     ROLE_CHOICES = (
@@ -36,4 +37,4 @@ class Registration(models.Model):
         unique_together = ('participant', 'event')
 
     def __str__(self):
-        return f"{self.participant.username} → {self.event.title}"
+        return f"{self.participant.username} -> {self.event.title}"
