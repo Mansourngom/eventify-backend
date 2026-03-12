@@ -2,11 +2,9 @@ from django.contrib.auth.models import User
 from django.db.models import Q
 from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import BasePermission, SAFE_METHODS
-from rest_framework.response import Response
-
+from django.contrib.auth.models import User
 from .models import Event, Registration
-from .serializers import EventSerializer, RegisterSerializer, RegistrationSerializer, UserSerializer
+from .serializers import RegisterSerializer, UserSerializer, EventSerializer, RegistrationSerializer
 
 
 class IsOrganizerOrReadOnly(BasePermission):
