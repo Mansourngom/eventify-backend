@@ -15,12 +15,24 @@ class Profile(models.Model):
 
 
 class Event(models.Model):
+    CATEGORY_CHOICES = (
+        ('conference', 'Conférence'),
+        ('concert', 'Concert'),
+        ('atelier', 'Atelier'),
+        ('sport', 'Sport'),
+        ('networking', 'Networking'),
+        ('autre', 'Autre'),
+    )
+
     title = models.CharField(max_length=200)
     description = models.TextField()
     location = models.CharField(max_length=200)
     date = models.DateTimeField()
     image = models.ImageField(upload_to='events/', blank=True, null=True)
     is_public = models.BooleanField(default=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='autre')
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    capacity = models.PositiveIntegerField(default=100)
     organizer = models.ForeignKey(User, on_delete=models.CASCADE, related_name='events')
     created_at = models.DateTimeField(auto_now_add=True)
 

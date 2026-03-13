@@ -76,15 +76,12 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DB_NAME', 'eventify_db'),
-        'USER': os.getenv('DB_USER', 'eventify_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'olise'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'TEST': {
-            'NAME': os.getenv('DB_TEST_NAME', ''),
-        },
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'eventify_db',
+        'USER': 'postgres',
+        'PASSWORD': 'admin1234',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
