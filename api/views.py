@@ -6,7 +6,6 @@ from django.contrib.auth.models import User
 from .models import Event, Registration
 from .serializers import RegisterSerializer, UserSerializer, EventSerializer, RegistrationSerializer
 
-
 class IsOrganizerOrReadOnly(BasePermission):
     def has_object_permission(self, request, view, obj):
         if request.method in SAFE_METHODS:
@@ -34,8 +33,19 @@ class EventListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.is_authenticated:
-            return Event.objects.filter(Q(is_public=True) | Q(organizer=user))
-        return Event.objects.filter(is_public=True)
+            qs = Event.objects.filter(Q(is_public=True) | Q(organizer=user))
+        else:
+            qs = Event.objects.filter(is_public=True)
+
+        category = self.request.query_params.get('category')
+        if category:
+            qs = qs.filter(category=category)
+
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
+
+        return qs
 
     def perform_create(self, serializer):
         serializer.save(organizer=self.request.user)
