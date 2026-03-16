@@ -16,22 +16,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         model  = User
         fields = ['email', 'password', 'first_name', 'last_name', 'role']
         extra_kwargs = {
-            'password'   : { 'write_only': True },
-            'first_name' : { 'required': False, 'default': 'Utilisateur' },
-            'last_name'  : { 'required': False, 'default': '' },
-            'role'       : { 'required': False, 'default': 'participant' },
+            'password'   : {'write_only': True},
+            'first_name' : {'required': False, 'default': 'Utilisateur'},
+            'last_name'  : {'required': False, 'default': ''},
+            'role'       : {'required': False, 'default': 'participant'},
+            'email'      : {'required': False, 'default': ''},
         }
 
-    def validate(self, data):
-        # ← aucune validation bloquante
-        return data
-
     def create(self, validated_data):
-        # username unique auto-généré
-        rand     = ''.join(random.choices(string.digits, k=6))
-        username = (validated_data.get('email','user').split('@')[0])[:20] + rand
-
-        user = User(
+        rand     = ''.join(random.choices(string.digits, k=8))
+        username = 'user_' + rand
+        user     = User(
             username   = username,
             email      = validated_data.get('email', ''),
             first_name = validated_data.get('first_name', 'Utilisateur'),
