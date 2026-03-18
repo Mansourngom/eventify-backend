@@ -1,7 +1,5 @@
-import random
-import string
-from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from rest_framework import serializers
 from .models import Event, Registration
 
 User = get_user_model()
@@ -15,47 +13,40 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model  = User
         fields = ['email', 'password', 'first_name', 'last_name', 'role']
-        extra_kwargs = {
-            'password'   : {'write_only': True},
-            'first_name' : {'required': False, 'default': 'Utilisateur'},
-            'last_name'  : {'required': False, 'default': ''},
-            'role'       : {'required': False, 'default': 'participant'},
-            'email'      : {'required': False, 'default': ''},
-        }
+        extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        rand     = ''.join(random.choices(string.digits, k=8))
-        username = 'user_' + rand
-        user     = User(
+        import random, string
+        username = 'user_' + ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        user = User.objects.create_user(
             username   = username,
             email      = validated_data.get('email', ''),
-            first_name = validated_data.get('first_name', 'Utilisateur'),
+            password   = validated_data.get('password', ''),
+            first_name = validated_data.get('first_name', ''),
             last_name  = validated_data.get('last_name', ''),
             role       = validated_data.get('role', 'participant'),
         )
-        user.set_password(validated_data.get('password', '1234'))
-        user.save()
         return user
 
 class EventSerializer(serializers.ModelSerializer):
-    organizer           = UserSerializer(read_only=True)
+    organizer_name      = serializers.SerializerMethodField()
     registrations_count = serializers.SerializerMethodField()
 
     class Meta:
         model  = Event
         fields = '__all__'
+        extra_kwargs = {'organizer': {'read_only': True}}
+
+    def get_organizer_name(self, obj):
+        return f"{obj.organizer.first_name} {obj.organizer.last_name}"
 
     def get_registrations_count(self, obj):
         return obj.registrations.count()
 
-class EventCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model   = Event
-        exclude = ['organizer']
-
 class RegistrationSerializer(serializers.ModelSerializer):
     event = EventSerializer(read_only=True)
+    user  = UserSerializer(read_only=True)
 
     class Meta:
-        model = Registration
-        fields = ['id', 'event', 'participant', 'registered_at']
+        model  = Registration
+        fields = '__all__'

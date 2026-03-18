@@ -1,34 +1,27 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 
 def load_env_file(path):
     if not path.exists():
         return
-
     for raw_line in path.read_text(encoding='utf-8').splitlines():
         line = raw_line.strip()
         if not line or line.startswith('#') or '=' not in line:
             continue
-
         key, value = line.split('=', 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
         if key and key not in os.environ:
             os.environ[key] = value
 
-
 load_env_file(BASE_DIR / '.env')
 
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-dev-key')
-
 DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() == 'true'
-
-ALLOWED_HOSTS = [
-    host.strip() for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',') if host.strip()
-]
+ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -37,10 +30,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    # Third party
     'rest_framework',
     'corsheaders',
-    # Local
     'api',
 ]
 
@@ -76,24 +67,18 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.getenv('DB_NAME', 'eventify_db'),
-        'USER': os.getenv('DB_USER', 'eventify_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'olise'),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '5432'),
-        'TEST': {
-            'NAME': os.getenv('DB_TEST_NAME', ''),
-        },
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'eventify_db',
+        'USER': 'eventify_user',
+        'PASSWORD': 'olise',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
+AUTH_USER_MODEL = 'api.User'
+
+AUTH_PASSWORD_VALIDATORS = []
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
@@ -102,20 +87,19 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-# CORS
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-]
+CORS_ALLOW_ALL_ORIGINS = True
 
-# Django REST Framework + JWT
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
-        'rest_framework.permissions.IsAuthenticatedOrReadOnly',
+        'rest_framework.permissions.AllowAny',
     ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=7),
 }
 
 MEDIA_URL = '/media/'

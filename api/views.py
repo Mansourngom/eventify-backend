@@ -1,108 +1,172 @@
-from django.contrib.auth.models import User
+import uuid
+from django.contrib.auth import get_user_model, authenticate
 from django.db.models import Q
-from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
-from django.contrib.auth.models import User
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken
 from .models import Event, Registration
-from .serializers import RegisterSerializer, UserSerializer, EventSerializer, RegistrationSerializer
+from .serializers import UserSerializer, EventSerializer, RegistrationSerializer
 
-
-class IsOrganizerOrReadOnly(BasePermission):
-    def has_object_permission(self, request, view, obj):
-        if request.method in SAFE_METHODS:
-            return True
-        return obj.organizer == request.user
-
-
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
-
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def me(request):
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
-
-
-class EventListCreateView(generics.ListCreateAPIView):
-    serializer_class = EventSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            return Event.objects.filter(Q(is_public=True) | Q(organizer=user))
-        return Event.objects.filter(is_public=True)
-
-    def perform_create(self, serializer):
-        serializer.save(organizer=self.request.user)
-
-
-class EventDetailView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = EventSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsOrganizerOrReadOnly]
-
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_authenticated:
-            return Event.objects.filter(Q(is_public=True) | Q(organizer=user))
-        return Event.objects.filter(is_public=True)
+User = get_user_model()
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
-def register_to_event(request, event_id):
+@permission_classes([AllowAny])
+def register(request):
+    data     = request.data
+    username = 'user_' + uuid.uuid4().hex[:8]
     try:
-        event = Event.objects.get(id=event_id)
-    except Event.DoesNotExist:
-        return Response({'error': 'Événement introuvable'}, status=404)
-
-    if not event.is_public and event.organizer != request.user:
-        return Response({'error': 'Accès refusé'}, status=403)
-
-    if Registration.objects.filter(participant=request.user, event=event).exists():
-        return Response({'error': 'Déjà inscrit à cet événement'}, status=400)
-
-    Registration.objects.create(participant=request.user, event=event)
-    return Response({'message': 'Inscription réussie'}, status=201)
-
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def my_registrations(request):
-    registrations = Registration.objects.filter(participant=request.user)
-    serializer = RegistrationSerializer(registrations, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def event_participants(request, event_id):
-    try:
-        event = Event.objects.get(id=event_id, organizer=request.user)
-    except Event.DoesNotExist:
-        return Response({'error': 'Événement introuvable ou accès refusé'}, status=404)
-
-    registrations = Registration.objects.filter(event=event)
-    serializer = RegistrationSerializer(registrations, many=True)
-    return Response(serializer.data)
-
-
-@api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
-def dashboard(request):
-    events = Event.objects.filter(organizer=request.user)
-    data = []
-    for event in events:
-        data.append(
-            {
-                'id': event.id,
-                'title': event.title,
-                'date': event.date,
-                'registrations_count': event.registrations.count(),
-            }
+        user = User.objects.create_user(
+            username   = username,
+            email      = data.get('email', ''),
+            password   = data.get('password', ''),
+            first_name = data.get('first_name', ''),
+            last_name  = data.get('last_name', ''),
+            role       = data.get('role', 'participant'),
         )
-    return Response(data)
+    except Exception as e:
+        return Response({'detail': str(e)}, status=400)
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access':  str(refresh.access_token),
+        'refresh': str(refresh),
+        'user':    UserSerializer(user).data,
+    }, status=201)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login(request):
+    email    = request.data.get('email', '')
+    password = request.data.get('password', '')
+    user_obj = User.objects.filter(email=email).first()
+    if not user_obj:
+        return Response({'detail': 'Identifiants incorrects'}, status=400)
+    user = authenticate(request, username=user_obj.username, password=password)
+    if not user:
+        return Response({'detail': 'Identifiants incorrects'}, status=400)
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        'access':  str(refresh.access_token),
+        'refresh': str(refresh),
+        'user':    UserSerializer(user).data,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    return Response(UserSerializer(request.user).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def event_list(request):
+    q        = request.query_params.get('q', '')
+    category = request.query_params.get('category', '')
+    events   = Event.objects.filter(is_private=False)
+    if q:
+        events = events.filter(Q(title__icontains=q) | Q(description__icontains=q))
+    if category:
+        events = events.filter(category=category)
+    return Response(EventSerializer(events.order_by('-created_at'), many=True).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def event_detail(request, pk):
+    try:
+        event = Event.objects.get(pk=pk)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    return Response(EventSerializer(event).data)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def event_create(request):
+    serializer = EventSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(organizer=request.user)
+        return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
+
+
+@api_view(['PUT', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def event_update(request, pk):
+    try:
+        event = Event.objects.get(pk=pk, organizer=request.user)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    serializer = EventSerializer(event, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
+    return Response(serializer.errors, status=400)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def event_delete(request, pk):
+    try:
+        event = Event.objects.get(pk=pk, organizer=request.user)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    event.delete()
+    return Response(status=204)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def event_register(request, pk):
+    try:
+        event = Event.objects.get(pk=pk)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    if Registration.objects.filter(user=request.user, event=event).exists():
+        return Response({'detail': 'Déjà inscrit'}, status=400)
+    Registration.objects.create(user=request.user, event=event)
+    return Response({'detail': 'Inscription réussie'}, status=201)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def my_registrations(request):
+    regs = Registration.objects.filter(user=request.user).select_related('event')
+    return Response(RegistrationSerializer(regs, many=True).data)
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def cancel_registration(request, pk):
+    try:
+        reg = Registration.objects.get(pk=pk, user=request.user)
+    except Registration.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    reg.delete()
+    return Response(status=204)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def dashboard_stats(request):
+    events             = Event.objects.filter(organizer=request.user)
+    total_participants = sum(e.registrations.count() for e in events)
+    return Response({
+        'events_count':       events.count(),
+        'participants_count': total_participants,
+        'revenue':            0,
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def event_participants(request, pk):
+    try:
+        event = Event.objects.get(pk=pk, organizer=request.user)
+    except Event.DoesNotExist:
+        return Response({'detail': 'Introuvable'}, status=404)
+    regs = Registration.objects.filter(event=event).select_related('user')
+    return Response(RegistrationSerializer(regs, many=True).data)
