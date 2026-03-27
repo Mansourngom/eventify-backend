@@ -16,7 +16,7 @@ def load_env_file(path):
         key, value = line.split('=', 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
+        if key:
             os.environ[key] = value
 
 
@@ -79,7 +79,7 @@ DATABASES = {
         'ENGINE': os.getenv('DB_ENGINE', 'django.db.backends.postgresql'),
         'NAME': os.getenv('DB_NAME', 'eventify_db'),
         'USER': os.getenv('DB_USER', 'eventify_user'),
-        'PASSWORD': os.getenv('DB_PASSWORD', 'olise'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'eventify123'),
         'HOST': os.getenv('DB_HOST', 'localhost'),
         'PORT': os.getenv('DB_PORT', '5432'),
         'TEST': {
