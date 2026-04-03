@@ -5,14 +5,12 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, default='participant')
 
 class Event(models.Model):
-    CATEGORIES = [('conference','Conférence'),('concert','Concert'),('atelier','Atelier'),
-                  ('sport','Sport'),('networking','Networking'),('autre','Autre')]
     title       = models.CharField(max_length=200)
     description = models.TextField()
     location    = models.CharField(max_length=200)
     date        = models.DateTimeField()
     image       = models.ImageField(upload_to='events/', null=True, blank=True)
-    category    = models.CharField(max_length=50, choices=CATEGORIES, default='conference')
+    category    = models.CharField(max_length=100, default='conference')
     is_private  = models.BooleanField(default=False)
     capacity    = models.IntegerField(default=100)
     price       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
