@@ -158,6 +158,7 @@ def dashboard_stats(request):
         'events_count':       events.count(),
         'participants_count': total_participants,
         'revenue':            0,
+        'events':             EventSerializer(events.order_by('-created_at'), many=True).data,
     })
 
 
